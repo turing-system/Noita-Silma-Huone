@@ -14,7 +14,7 @@ The following *line* is for windows
 # Run the brute-force
 `python dummy_bruteforce.py`
 
-Please note that dummy_bruteforce can't solve eyes messages
+Please note that dummy_bruteforce **can't** solve eyes messages
 
 
 # Build the dictionnary
