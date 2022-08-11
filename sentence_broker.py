@@ -9,11 +9,8 @@ may help us to priorize keys to check, especially in a heuristic process.
 As it's a quite difficult ressources to get at all and qualified, we
 will built it.
 """
-import queue
 import re
 from collections import defaultdict
-
-from tqdm import tqdm
 
 SENTENCE_PATTERN = re.compile(r"^\s*([A-Za-z,;'\"]\s?)+[.?!]", flags=re.MULTILINE)
 
@@ -68,15 +65,15 @@ def sentence_generator(stream):
         next_line = stream.readline()
 
 
-def count_words_occurrence(list_files_paths: list = [], quiet: bool = True):
+def count_words_occurrence(iterable_streams, quiet: bool = True):
     """ Take a list of txt files and count each words relative to his position
     and from the previous words.
     
     Note that we condiderate poncturation as words.
     
     Args:
-        list_files_paths (list): list of path (can be relative) to text files.
-        quiet (bool): if true, enable a tqdm progress bar (to stdout)
+        iterable_streams (iterable[io.IOBase]): list of stream to text files.
+        quiet (bool): if true, enable a progress display (to stdout)
     Returns:
         (dict) a recursive dict as key → tuple(occurrence_count, dict_next_word)
         and as `dict_next_word` having the same structure that the first one.
@@ -88,46 +85,48 @@ def count_words_occurrence(list_files_paths: list = [], quiet: bool = True):
 
     index_occurrence = defaultdict(recursive_default)
 
-    # Allow tqdm display
-    iterable_on = list_files_paths
-    if not quiet:
-        iterable_on = tqdm(iterable_on)
-
-    # Loop over files and count.
-    for file_path in iterable_on:
+    # Loop over files and count (only for quiet = False).
+    count_done = 0
+    for file in iterable_streams:
         if not quiet:
-            iterable_on.set_description(f"Processing {file_path}")
+            print(f"Files processed : {count_done}", end='\r')
 
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                for sentence in sentence_generator(f):
-                    if not sentence:
-                        break
+            for sentence in sentence_generator(file):
+                if not sentence:
+                    break
 
-                    words = sentence.split()
+                words = sentence.strip().lower().split()
 
-                    current_index = index_occurrence
+                # separate the ponctuation
+                ponctuation = words[-1][-1]
+                words[-1] = words[-1][:-1]
+                words.append(ponctuation)
 
-                    for word in words:
-                        current_index[word][0] += 1
-                        current_index = current_index[word][1]
+                current_index = index_occurrence
+
+                for word in words:
+                    current_index[word][0] += 1
+                    current_index = current_index[word][1]
         except UnicodeDecodeError:
             pass
+        
+        count_done += 1
+    
+    if not quiet:
+        print()  # Force new line
 
     return index_occurrence
 
 
 if __name__ == "__main__":
     import json
-    from os import listdir, rename, remove
-    from os.path import isfile, join
+    from gutenberg_pooler import generator_book_file_stream
+    from os import rename, remove
+    from os.path import isfile
 
-    texts_files = [
-        join("./references", f)
-        for f in listdir("./references")
-        if isfile(join("./references", f))
-    ]
-    output = count_words_occurrence(texts_files, quiet=False)
+
+    output = count_words_occurrence(generator_book_file_stream(), quiet=False)
     # Build a backup
     try:
         if isfile("./output.sentence_broker.json"):
