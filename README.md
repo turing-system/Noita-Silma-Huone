@@ -12,11 +12,19 @@
 
 `python -m unittest`
 
-# Run the brute-force
+# dummy_bruteforce.py
 
 `python dummy_bruteforce.py`
 
 Please note that dummy_bruteforce **can't** solve eyes messages
+
+# sentence_broker.py
+The sentence broker is parsing texts files in order to count occurences of words by position and by the previous words.
+Use to compute frequencies, usefull for your enigma.
+
+`python ./sentence_broker.py` will parse all texts files in `./references` folder as utf-8 files (you will need to create it and add the files).
+
+If you want to parse Gutenberg project's books → **don't**, ask @Dykoine on the discord and he will give you the result. It's unneeded to overload their servers. 
 
 # Build the dictionnary
 
