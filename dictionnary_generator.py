@@ -3,7 +3,8 @@
 from collections import deque
 from nltk.corpus import wordnet
 
-def get_words(only_range_len:tuple[int, int]=None):
+
+def get_words(only_range_len: "tuple[int, int]" = None):
     """ Get the list of words.
     
     Args:
@@ -22,14 +23,17 @@ def get_words(only_range_len:tuple[int, int]=None):
     words = wordnet.words()
     for word in words:
         # Filter by length
-        if only_range_len is not None and not only_range_len[0] < len(word) < only_range_len[1]:
+        if (
+            only_range_len is not None
+            and not only_range_len[0] < len(word) < only_range_len[1]
+        ):
             continue
 
         # Filter by char
         is_found = False
         for forbinden_char in forbiden_chars:
             if forbinden_char in word:
-                is_found=True
+                is_found = True
                 break
         if is_found:
             continue
@@ -38,6 +42,7 @@ def get_words(only_range_len:tuple[int, int]=None):
         output.append(word)
 
     return output
+
 
 if __name__ == "__main__":
     # Just write the output in the dict

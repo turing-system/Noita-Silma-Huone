@@ -1,5 +1,7 @@
 # Other projects copy/past
 references/
+# text output
+output.*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
