@@ -7,6 +7,11 @@ A usefull database for texts analysis.
 You shouldn't use it. Ask for @Dykoine for direct result.
 There is no use to overload their servers.
 
+If I'm not available, note that this script require
+the 'catalog.marc' file that come from the Gutenberg website.
+
+Link to book are in it.
+
 Here a very simple downloader.
 """
 import re
