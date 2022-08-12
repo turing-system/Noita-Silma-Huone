@@ -36,7 +36,7 @@ Please note that dummy_bruteforce **can't** solve eyes messages. (c.f. @codewarr
 The sentence broker is parsing texts files in order to count occurences of words by position and by the previous words.
 Use to compute frequencies, usefull for your enigma.
 
-It will parse all texts files in `./references` folder as utf-8 files (you will need to create it and add the files).
+It will parse all texts files in `./references/gutenberg` folder as utf-8 files (you will need to create it and add the files).
 
 Use the following command to generate the json file:
 `python ./sentence_broker.py`
