@@ -15,28 +15,31 @@ Link to book are in it.
 Here a very simple downloader.
 """
 import re
-import os
 import requests
 
-def generator_book_file_stream():
-    """ Yield stream to temporary files of utf-8 text of book
-    
+
+def generator_gutenberg_book_id(skip_to: int = 0) -> str:
+    """Yield url of utf-8 text of book.
+
     Book are found on the Gutenberg project.
 
-    The generator will attempt to close the previous stream
-    on yield the next, then delete the previous file.
-
+    Args:
+        skip_to (int): skip the n first links. Mostly for dev purpose.
     Returns:
-        (io.IOBase) Yield stream to book file. Return None when no more book are available.
+        (str) Yield url to book file. Return None when no more book are available.
     """
 
-    book_id_pattern = re.compile(r'https?://www.gutenberg.org/etext/(?P<book_id>[0-9]+)')
+    book_id_pattern = re.compile(
+        r"\| eng [^\|]+https?://www.gutenberg.org/etext/(?P<book_id>[0-9]+)[^\|]+\|"
+    )
 
-    with open('./references/catalog.marc', 'r', encoding='utf-8') as catalog_stream:
+    skip_remain = skip_to
+
+    with open("./references/catalog.marc", "r", encoding="utf-8") as catalog_stream:
         # Reading chunk by chunk and adding then in a buffer to avoid
         # to skip matchs that are in-between chunk.
         size_chunk = 1024
-        buffer = ''
+        buffer = ""
         catalog_chunk = catalog_stream.read(size_chunk)
         while len(catalog_chunk) > 0:
             buffer += catalog_chunk
@@ -44,38 +47,36 @@ def generator_book_file_stream():
             last_match = None
             for match in book_id_pattern.finditer(buffer):
                 last_match = match
-                book_id = match.group('book_id')
-                
-                # Each time we found a match, we generate the URL to the UTF-8 book link and download him.
-                try:
-                    response = requests.get( f"https://www.gutenberg.org/ebooks/{book_id}.txt.utf-8")
-                    with open("./references/gutenberg.temp", "wb") as temp_file:
-                        temp_file.write(response.content)
 
-                    with open("./references/gutenberg.temp", "r", encoding="utf-8") as temp_file:
-                        # Then yield the file stream
-                        # Note it stay "in the with" statement until next()
-                        # is call on the generator, allowing such structure.
-                        yield temp_file
-
-                    try:
-                        # Just cleaning
-                        os.remove("./references/gutenberg.temp")
-                    except Exception:
-                        pass
-                except Exception as error:
-                    # Shouldn't happen, only for debugging.
-                    print(error)
+                # Apply skip_to
+                if skip_remain:
+                    skip_remain -= 1
+                    continue
+                else:
+                    yield match.group("book_id")
 
             # Trash used part of the buffer
             if last_match:
-                buffer = buffer[last_match.end('book_id'):]
+                buffer = buffer[last_match.end("book_id") :]
 
             catalog_chunk = catalog_stream.read(size_chunk)
 
+
 if __name__ == "__main__":
-    print("This file does nothing by himself, it was design to be use by the sentence broker.")
-    # for i, a in enumerate(generator_book_file_stream()):
-    #     print(a.read(1024))
-    #     if i > 3:
-    #         break
+    import os
+    for i, book_id in enumerate(generator_gutenberg_book_id()):
+        book_file_path = f"./references/gutenberg/{book_id}.book.txt"
+
+        # Skip already done
+        if os.path.isfile(book_file_path):
+            continue
+
+        print(f"Get the book {book_id} (#{i+1}th){" " * 10}", end='\r')
+        response = requests.get(f"https://www.gutenberg.org/ebooks/{book_id}.txt.utf-8")
+        try:
+            response.content.decode("utf8")
+            with open(book_file_path, "wb") as book_file:
+                book_file.write(response.content)
+        except UnicodeError:
+            pass
+    print()  # force new line

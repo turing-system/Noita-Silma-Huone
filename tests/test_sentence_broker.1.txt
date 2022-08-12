@@ -1,0 +1,2 @@
+The banana is yellow.
+The banana is blue.
