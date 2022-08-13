@@ -78,6 +78,7 @@ def count_words_occurrence(
     list_of_filepath = [],
     max_words: int = 0,
     max_chars: int = 0,
+    merge_each: int = 5000,
     quiet: bool = True
 ) -> None:
     """ Take a list of txt files and count each words relative to his position
@@ -94,6 +95,10 @@ def count_words_occurrence(
         max_chars (int):
             Sentence with more chars than this number are ignored.
             Set to 0 or lower to disable this feature. (default: 0)
+        merge_each (int):
+            Each file are treat before merging.
+            Merge take a long time, but reduce the memory consumption.
+            Set to <= 0 to disable. (default: 5000)
     """
     if not quiet:
         list_of_filepath = tqdm(list_of_filepath)
@@ -106,8 +111,8 @@ def count_words_occurrence(
         if not quiet:
             list_of_filepath.set_description(
                 f"{filepath} (avg: text: "
-                f"{perf_sum_sentence_time/n:.4f}; "
-                f"merge: {perf_sum_merge_time/n:.4f})"
+                f"{perf_sum_sentence_time/(n+1):.4f}; "
+                f"merge: {perf_sum_merge_time/(n+1):.4f})"
             )
 
         perf_sentence_start_time = time.time()
@@ -144,32 +149,33 @@ def count_words_occurrence(
         # Merge both by optimizing the memory usage and speed
         # Done after each file in order to reduce the number of lines
         # and memory consumption
-        output_statistics = list(buffer_sentences_statistics) + output_statistics
-        output_statistics.sort(key = lambda x: f"{x[2]}{x[0]}||{x[1]}")
-        next_output = deque()
-        cursor = 0
-        for _ in range(len(output_statistics)):
-            cursor += 1
+        if (merge_each > 0 and n % merge_each == 0) or n == len(list_of_filepath) -1:
+            output_statistics = list(buffer_sentences_statistics) + output_statistics
+            output_statistics.sort(key = lambda x: f"{x[2]}{x[0]}||{x[1]}")
+            next_output = deque()
+            cursor = 0
+            for _ in range(len(output_statistics)):
+                cursor += 1
 
-            # Merge is done
-            if len(output_statistics) <= cursor:
-                break
+                # Merge is done
+                if len(output_statistics) <= cursor:
+                    break
 
-            previous = output_statistics[cursor-1]
-            current = output_statistics[cursor]
+                previous = output_statistics[cursor-1]
+                current = output_statistics[cursor]
 
-            # When different, output_statistics[:cursor] are the same type of
-            # occurences, and can be sum. 
-            if (previous[2] != current[2]
-                or previous[1] != current[1]
-                or previous[0] != current[0]
-            ):
-                next_output.append((previous[0], previous[1], previous[2], sum([line[3] for line in output_statistics[:cursor]])))
-                output_statistics = output_statistics[cursor:]
-                cursor = 0
+                # When different, output_statistics[:cursor] are the same type of
+                # occurences, and can be sum. 
+                if (previous[2] != current[2]
+                    or previous[1] != current[1]
+                    or previous[0] != current[0]
+                ):
+                    next_output.append((previous[0], previous[1], previous[2], sum([line[3] for line in output_statistics[:cursor]])))
+                    output_statistics = output_statistics[cursor:]
+                    cursor = 0
 
-        # Set all back to `output_statistics` and adding remains equals
-        output_statistics = list(next_output) + output_statistics
+            # Set all back to `output_statistics` and adding remains equals
+            output_statistics = list(next_output) + output_statistics
         perf_merge_end_time = time.time()
 
         # Performance compute
@@ -189,7 +195,7 @@ if __name__ == "__main__":
         for filename in os.listdir('./references/gutenberg')
     ]
 
-    list_occurences = count_words_occurrence(books_filepaths, quiet=False)
+    list_occurences = count_words_occurrence(books_filepaths, max_chars=138, merge_each=-1, quiet=False)
     with open("./references/gutenberg.stats.txt", 'w') as file:
         for occurence_tuple in list_occurences:
             file.write("\t".join([str(o) for o in occurence_tuple])+"\n")

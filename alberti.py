@@ -45,65 +45,75 @@ class Alberti():
 
         return dict(convert_dict)
 
-    def encode(self, plain, shift_initial=0, shift_stall=1, shift_step=1):
+    def encode(self, plain, shift_definitions:"list[tuple[int, int]]"=[]):
         """ Encode plain text to cipher text
 
         Args:
             * plain (str): the plain string to treat
-            * shift_initial (int): Initial shift of the cipher alphabet
-            * shift_stall (int): Number of char convert without shift
-            * shift_step (int): How much the cipher alphabet is shifted after stall
+            * shift_definitions (list[tuple[int, int]]):
+                list of tuple as following: first element is the position
+                where occurs the shift, the second one is how long the
+                shift is.
+                First element of each tuple must be unique.
         Return:
             (str) cipher string
         """
-        assert shift_initial >= 0
-        assert shift_stall >= 1
-        assert shift_step >= 1
 
         output = deque()
+        encode_dict = self.build_encode_dict(0)
 
-        current_shift = shift_initial
-        encode_dict = self.build_encode_dict(current_shift)
+        shifts = sorted(shift_definitions, key=lambda t: t[0])
+        shifts_cursor = sum(shift_def[0] < 0 for shift_def in shift_definitions)
+        current_shift = 0
 
         # Build a cursor for each plain text in order to use variant output char
         # evenly
         cursor_dict = { k:0 for k in encode_dict }
-
         for i, char in enumerate(plain):
+
+            # Find next shift
+            if (shifts_cursor < len(shifts) 
+                and shifts[shifts_cursor][0] == i
+            ):
+                current_shift += shifts[shifts_cursor][1]
+                encode_dict = self.build_encode_dict(current_shift)
+                shifts_cursor += 1
+
             output.append(encode_dict[char][cursor_dict[char] % len(encode_dict[char])])
             cursor_dict[char] += 1
 
-            if i % shift_stall == 0 and i > 0:
-                current_shift += shift_step
-                encode_dict = self.build_encode_dict(current_shift)
-
         return ''.join(output)
 
-    def decode(self, cipher, shift_initial=0, shift_stall=1, shift_step=1):
+    def decode(self, cipher, shift_definitions:"list[tuple[int, int]]"=[]):
         """ Decode cipher text to plain text
 
         Args:
             * cipher (str): the plain string to treat
-            * shift_initial (int): Initial shift of the cipher alphabet
-            * shift_stall (int): Number of char convert without shift
-            * shift_step (int): How much the cipher alphabet is shifted after stall
+            * shift_definitions (list[tuple[int, int]]):
+                list of tuple as following: first element is the position
+                where occurs the shift, the second one is how long the
+                shift is.
+                First element of each tuple must be unique.
         Return:
             (str) plain string
         """
-        assert shift_initial >= 0
-        assert shift_stall >= 1
-        assert shift_step >= 1
 
         output = deque()
+        decode_dict = self.build_decode_dict(0)
 
-        current_shift = shift_initial
-        decode_dict = self.build_decode_dict(current_shift)
+        shifts = sorted(shift_definitions, key=lambda t: t[0])
+        shifts_cursor = sum(shift_def[0] < 0 for shift_def in shift_definitions)
+        current_shift = 0
 
         for i, char in enumerate(cipher):
-            output.append(decode_dict[char])
-
-            if i % shift_stall == 0 and i > 0:
-                current_shift += shift_step
+            # Find next shift
+            if (shifts_cursor < len(shifts) 
+                and shifts[shifts_cursor][0] == i
+            ):
+                current_shift += shifts[shifts_cursor][1]
                 decode_dict = self.build_decode_dict(current_shift)
+                shifts_cursor += 1
+            
+            output.append(decode_dict[char])
 
         return ''.join(output)

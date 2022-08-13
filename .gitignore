@@ -2,6 +2,8 @@
 references/
 # text output
 output.*
+# Work around file
+draft_scripts.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

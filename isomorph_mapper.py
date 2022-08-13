@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """ In our analysis, we need to map isomorphs.
 
+======= WARNING : Work in progress =======
+
 Isomorphs are a pair or more of one or more elements
 that respect a positionnal pattern over ciphers messages.
 
@@ -14,7 +16,7 @@ we don't considerate included isomorphs of 2 elements.
 
 But we're accepting that isomorph may overlap
 """
-from statics.message import (
+from constants.message import (
     E1,
     W1,
     E2,

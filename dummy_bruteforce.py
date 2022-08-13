@@ -30,7 +30,7 @@ from tqdm import tqdm
 
 from alberti import Alberti
 from dictionnary_generator import get_words
-from statics.message import (
+from constants.message import (
     E1,
     E2,
     W1,

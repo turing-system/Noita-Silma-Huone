@@ -13,21 +13,19 @@ class AlbertiTestCase(TestCase):
 
     def test_symetry(self):
         plain = "ALSKDJLOWIJHLDSA143KFNPOEIHSLDFJNDS354LFKJPQWIFJSDLGJBN354SKFJELOIFJSLFKSDLJGNLSDKF"
-        shift_initial=4
-        shift_stall=4
-        shift_step=7
+        shifts_def = [
+            (0,4),
+        ]
+        for i in range(1, 20):
+            shifts_def.append((i*4, 7,))
 
         self.assertEqual(
             plain,
             self.cipher.decode(
                 cipher=self.cipher.encode(
                     plain=plain,
-                    shift_initial=shift_initial,
-                    shift_stall=shift_stall,
-                    shift_step=shift_step,
+                    shift_definitions=shifts_def,
                 ),
-                shift_initial=shift_initial,
-                shift_stall=shift_stall,
-                shift_step=shift_step,
+                shift_definitions=shifts_def,
             )
         )
