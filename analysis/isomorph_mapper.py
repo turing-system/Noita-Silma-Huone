@@ -16,7 +16,7 @@ we don't considerate included isomorphs of 2 elements.
 
 But we're accepting that isomorph may overlap
 """
-from constants.message import (
+from constant.message import (
     E1,
     W1,
     E2,

@@ -4,7 +4,7 @@ that use 2 cipher alphabet alternativly that allow no double in
 the output.
 """
 from collections import defaultdict
-from constants.message import (
+from constant.message import (
     E1,
 )
 

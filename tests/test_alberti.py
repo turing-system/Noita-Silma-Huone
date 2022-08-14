@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from unittest import TestCase
 
-from alberti import Alberti
+from cipher.alberti import Alberti
 
 
 class AlbertiTestCase(TestCase):

@@ -33,7 +33,7 @@ usage. But the above prove is still valid
 and may be quicker than other type of
 bruteforce.
 """
-from alberti import Alberti
+from cipher.alberti import Alberti
 
 plain_a = "ALSDKASDLKALKDSASDLKN"
 plain_b = "NOWEQFBQWIBDSKFBAKSHD"

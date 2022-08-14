@@ -28,9 +28,9 @@ The position of fillers are defined by `mask_filler`
 from collections import defaultdict
 from tqdm import tqdm
 
-from alberti import Alberti
+from cipher.alberti import Alberti
 from dictionnary_generator import get_words
-from constants.message import (
+from constant.message import (
     E1,
     E2,
     W1,

@@ -1,3 +1,5 @@
+import itertools
+
 E1 = [
     50,
     66,
@@ -1052,3 +1054,6 @@ E5 = [
     24,
     41,
 ]
+
+eyes_messages = [E1, W1, E2, W2, E3, W3, E4, W4, E5]
+eyes_messages_as_whole = list(itertools.chain.from_iterable(eyes_messages))
