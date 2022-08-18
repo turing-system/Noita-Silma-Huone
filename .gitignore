@@ -2,6 +2,7 @@
 references/
 # text output
 output.*
+output/*
 # Work around file
 draft_scripts.py
 
