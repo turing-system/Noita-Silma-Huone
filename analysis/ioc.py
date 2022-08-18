@@ -61,48 +61,32 @@ def reverse_ioc_generator(target_ioc: float, symbols_by_position:list[list]=None
         symbols is not None and message_length is not None
     )
 
-    # Build symbols_by_position
+    # Auto-fill `symbols_by_position``
     if symbols_by_position is None:
         symbols_by_position = []
         for _ in range(message_length):
             symbols_by_position = list(symbols)
 
+    # Auto-fill `message_length`
     if message_length is None:
         message_length = len(symbols_by_position)
 
-    # Compute denominator
-    denominator = message_length * (message_length -1)
-
-    # Get list of symbols
+    # Auto-fill `symbols`
     all_symbols_ununique = sum(symbols_by_position, start=[])
     if symbols is None:
         symbols = np.unique(all_symbols_ununique)
 
-    # Define max occurences of each
-    max_count_all = 0
+    # Compute denominator
+    denominator = message_length * (message_length -1)
+
+    # Define max overall occurences of a single symbol
+    max_global = 0
     for n in range(message_length):
         nominator = n*(n-1)
         if nominator/denominator < target_ioc + delta:
-            max_count_all = n
-
-    max_by_symbol = {
-        s: min(max_count_all, all_symbols_ununique.count(s))
-        for s in symbols
-    }
-
-    # Define amount of overlapping
-    map_overlapping = {
-        s: defaultdict(lambda: 0)
-        for s in symbols
-    }
-    for position_n in symbols_by_position:
-        for s1 in position_n:
-            for s2 in position_n:
-                if s1 != s2:
-                    map_overlapping[s1][s2] += 1
-    
-    sorted_maxs = max_by_symbol.items()
-    sorted_maxs.sort(key=lambda x: -x[1])
+            max_global = n
+        else:
+            break
 
     # Build symbols -> possible position (perf purpose)
     symbol_to_positions = defaultdict(deque)
@@ -110,8 +94,11 @@ def reverse_ioc_generator(target_ioc: float, symbols_by_position:list[list]=None
         symbol_to_positions[symbol].append(position)
 
     def _resurcive_stage_solution_generator(
+        current_max: int,
+        current_nominator: float,
+        current_slot_consume: int,
         current_solution: list,
-        solution_template: list,
+        target_range_ioc: tuple,
         symbol_to_positions: dict[list],
         symbols_by_position: list[list],
         stage_deepness=0,
@@ -120,15 +107,31 @@ def reverse_ioc_generator(target_ioc: float, symbols_by_position:list[list]=None
         will only generate solutions that are possibles from the beginning
         to the end, by considerating it stage by stage, recursivly.
 
-        For each unique of
-        "number of symbols that repeat the same amount of times"
-        Generate symbols candidate
+        This function is call for each "stage"
+        A "stage" is a number that define how much a given symbol will repeat.
+
+        Exemple, 5 mean we have a symbol which is selected to be repeated 5
+        times.
+
+        For a given stage, all possibles symbols availables for this stage are
+        considerated and we compute all solutions for each of them.
+
+        This heuristic process allow us to not event try to compute all 
+        possibilities, and drop a minimal of invalid solutions on the way.
 
         Args:
+            * current_max (int):
+                We can't add a symbol `current_max` times at this stage.
             * current_solution (list):
                 The list of symbols selected by previous stages
-            * solution_template (list[int]):
-                List of the amount of occurence (value) per stage (position)
+            * current_nominator (float):
+                Value IoC value for `current_solution`
+            * current_slot_consume (int):
+                Number of slot used in the `current_solution`.
+                Equal to `len(current_solution) - current_solution.count(None)`
+            * target_range_ioc (tuple[int, int]):
+                Tuple of size 2, that is compose of the `(min, max)` of the
+                targer IoC range.
             * symbol_to_positions (dict[int, list(int)]):
                 Reverse of `symbols_by_position`.
                 An index of the list of available positions (value)
@@ -140,114 +143,98 @@ def reverse_ioc_generator(target_ioc: float, symbols_by_position:list[list]=None
                 Which stage we are, from the beginning
         Return:
             (list[int]) Yield solutions as list of symbols
+        TODO:
+            * `stage_sizes` compute can be better, I think we can pre-compute
+                in which range we the current stage size can be to be in the
+                target IoC range.
+                All ideas are welcome.
         """
         # Note that `s1` and `s2` always refer to a symbol value
 
         # Default solution
         if current_solution is None:
-            current_solution = [None] * len(solution_template)
+            current_solution = [None] * len(symbols_by_position)
 
-        # stage_size (int): We want a symbol who is repeated
-        #     `stage_size` times across the solution.
-        stage_size = solution_template[stage_deepness]
+        solution_length = len(symbols_by_position)
+        ioc_denominator = solution_length*(solution_length-1)
 
-        # Define compatible symbols
-        stage_symbols = deque()
-        for s1, positions in symbol_to_positions.items():
-            if len(positions) >= stage_size:
-                stage_symbols.append(s1)
-
-        for s1 in stage_symbols:
-            positions_availables = symbol_to_positions[s1]
-            for stage_as_binary in generator_bin_words(
-                words_length = len(positions_availables),
-                bits_up_count = stage_size,
-            ):
-                # See the `stage_as_binary` as a number
-                # where "0001100" mean the 3rd and 4th
-                # "are in".
-
-                # Break ref to reuse in next iteration
-                next_solution = list(current_solution)
-                next_symbol_to_positions = dict(symbol_to_positions)
-
-                # Apply `stage_as_binary`, as it define new position for
-                # the symbol `s1`
-                for i in range(len(stage_symbols)):
-                    if (1 << i & stage_as_binary) > 0:
-                        next_solution[positions_availables[i]] = s1
-                        # Update `next_symbol_to_positions`
-                        for s2 in symbols_by_position[positions_availables[i]]:
-                            next_symbol_to_positions[s2].remove(positions_availables[i])
-
-                if stage_deepness == len(solution_template) -1:
-                    # Tail behavior
-                    yield next_solution
-                else:
-                    # Head/body behavior
-                    yield from _resurcive_stage_solution_generator(
-                        current_solution=next_solution,
-                        solution_template=solution_template,
-                        symbol_to_positions=next_symbol_to_positions,
-                        symbols_by_position=symbols_by_position,
-                        stage_deepness=stage_deepness +1,
-                    )
-
-    # Generate solutions templates
-    # A solution template is just a list of number
-    # Each number N represent a symbol repeated N times across the message
-    # We iterate over a maximum first symbol occurence, that we lower until
-    # no more solution are possible.
-    for max_current in range(max_count_all, 0, -1):
-        # TODO convert to recursive
-        solution_template = [max_current]
-        # Count solution message_length (for check < message message_length)
-        solution_message_length += max_current
-        # Compute nominator (IoC)
-        nominator = max_current * (max_current-1)
-        # Build a solution form this root
-        for n in range(max_current, 0, -1):
-            # Optimized, count number of symbol who can
-            # be use `n` times
-            max_message_length_for_n = 0
-            previous_symbols = deque()
-            for s1, m in sorted_maxs:
-                # We considerate his max - greater symbol overlap
-                s1_max = sum(
-                    [-map_overlapping[s1][s2] for s2 in previous_symbols],
-                    start=m,
-                )
-                if s1_max < n:
-                    max_message_length_for_n +=1
-                else:
-                    break
-                previous_symbols.append(s1)
+        # Compute all possibles stages sizes from this point
+        stage_sizes = []
+        for n in range(current_max, 0, -1):
+            # Skip no-fit in the remains slot
+            if n > (solution_length-current_slot_consume):
+                continue
             
-            # Add until reach the limit
-            while (
-                (nominator + n*(n-1)) / denominator < target_ioc + delta
-                and len(solution_template) < max_message_length_for_n
-                and solution_message_length + n <= message_length
-            ):
-                # Increase the nominator
-                nominator += n*(n-1)
-                solution_template.append(n)
-                solution_message_length += n
+            # Filter if the max possible IoC can't reach the minimal target IoC
+            # Note that we don't considerate any symbols slots combination here.
+            forecast_slot_consume = current_slot_consume
+            forecast_nominator = current_nominator
+            for m in range(n, 0, -1):
+                # Will pass at least once, due to above condiiton (↑ ~6 lines)
+                while m <= (solution_length-forecast_slot_consume):
+                    forecast_nominator += m*(m-1)
+                    forecast_slot_consume += m
+            
+            if forecast_nominator/ioc_denominator >= target_range_ioc[0]:
+                stage_sizes.append(n)
 
-            if solution_message_length == message_length:
-                break
-        
-        # If not reaching the minimal delta
-        # No more solutions are possible
-        if nominator / denominator < target_ioc - delta:
-            break
+        # For each stage size at this position, compute all reals combinations
+        # possible, that take in accuont the 
+        for stage_size in stage_sizes:
+            # Define compatible symbols
+            stage_symbols = deque()
+            for s1, positions in symbol_to_positions.items():
+                if len(positions) >= stage_size and s1 not in current_solution:
+                    stage_symbols.append(s1)
+            # Define next nominator
+            forecast_nominator = current_nominator + stage_size*(stage_size-1)
 
-        # Yield all solutions for this `solution_template`
-        yield from _resurcive_stage_solution_generator(
-            solution_template=solution_template,
-            symbol_to_positions=symbol_to_positions,
-            symbols_by_position=symbols_by_position,
-        )
+            for s1 in stage_symbols:
+                positions_availables = symbol_to_positions[s1]
+                for stage_as_binary in generator_bin_words(
+                    words_length = len(positions_availables),
+                    bits_up_count = stage_size,
+                ):
+                    # See the `stage_as_binary` as a number
+                    # where "0001100" mean the 3rd and 4th
+                    # "are in".
+
+                    # Break ref to reuse in next iteration
+                    next_solution = list(current_solution)
+                    next_symbol_to_positions = dict(symbol_to_positions)
+
+                    # Apply `stage_as_binary`, as it define new position for
+                    # the symbol `s1`
+                    for i in range(len(stage_symbols)):
+                        if (1 << i & stage_as_binary) > 0:
+                            next_solution[positions_availables[i]] = s1
+                            # Update `next_symbol_to_positions`
+                            for s2 in symbols_by_position[positions_availables[i]]:
+                                next_symbol_to_positions[s2].remove(positions_availables[i])
+
+                    if stage_deepness == len(symbols_by_position) -1:
+                        # Tail behavior
+                        yield next_solution
+                    else:
+                        # Head/body behavior
+                        yield from _resurcive_stage_solution_generator(
+                            current_max=stage_size,
+                            current_nominator=forecast_nominator,
+                            current_slot_consume=current_slot_consume+stage_size,
+                            current_solution=next_solution,
+                            target_range_ioc=target_range_ioc,
+                            symbol_to_positions=next_symbol_to_positions,
+                            symbols_by_position=symbols_by_position,
+                            stage_deepness=stage_deepness +1,
+                        )
+
+    # Yield all solutions for this `solution_template`
+    yield from _resurcive_stage_solution_generator(
+        current_max=max_global,
+        symbol_to_positions=symbol_to_positions,
+        symbols_by_position=symbols_by_position,
+        target_range_ioc=(target_ioc-delta, target_ioc+delta)
+    )
 
 
 if __name__ == "__main__":
