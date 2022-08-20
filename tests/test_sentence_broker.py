@@ -1,8 +1,7 @@
 # -*- coding: utf-8 -*-
-from io import StringIO
 from unittest import TestCase
 
-from sentence_broker import count_words_occurrence
+from language.sentence_broker import count_words_occurrence
 
 
 class SentenceBrokerTestCase(TestCase):

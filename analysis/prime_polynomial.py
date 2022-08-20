@@ -1,16 +1,16 @@
 # -*- coding: utf-8 -*-
 """ Prime polynomial cipher analysis
 
-There is no real explaination for the 83 long cipher alphabet was choose, but we
+There is no real explanation for the 83 long cipher alphabet was choose, but we
 can note that's a prime number.
 
 We use here the first cryptography manual of Friedman
 as main reference for terms and methodology:
 https://www.nsa.gov/portals/75/documents/news-features/declassified-documents/military-cryptanalysis/mil_crypt_I.pdf
 
-One explaination would be the cipher is `c[i] = (k[i] * p[i] + phi) % 83`, in
+One explanation would be the cipher is `c[i] = (k[i] * p[i] + phi) % 83`, in
 that case :
-    - it's explaining why a prime number is choosen as modulo
+    - it's explaining why a prime number is chosen as modulo
     - as long `k` values are prime, not in `p`, and k[i] != k[i+1], they can't
     have double following letters on the cryptogram.
 

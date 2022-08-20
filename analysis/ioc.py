@@ -2,12 +2,11 @@
 """ A file to compute the Index of Coincidence [IoC]
 as it will be use quite everywhere.
 """
-import math
+import copy
 from collections import (
     defaultdict,
     deque,
 )
-from turtle import position
 
 import numpy as np
 
@@ -32,7 +31,7 @@ def ioc(array):
     for s in symbols:
         count = cryptograph.count(s)
         numerator += count * (count-1)
-    return numerator / len(cryptograph)
+    return numerator / (len(cryptograph) * len(cryptograph) -1)
 
 def reverse_ioc_generator(target_ioc: float, symbols_by_position:list[list]=None, symbols: list=None, message_length:int=None, delta=0) -> list:
     """ From the IoC target, build a generator that will yield 
@@ -56,16 +55,22 @@ def reverse_ioc_generator(target_ioc: float, symbols_by_position:list[list]=None
     Return:
         (list) Yield list of values
     """
-
     assert symbols_by_position is not None or (
         symbols is not None and message_length is not None
     )
 
-    # Auto-fill `symbols_by_position``
+    # Auto-fill `symbols_by_position`
+    # Which is position -> possible symbols
     if symbols_by_position is None:
         symbols_by_position = []
         for _ in range(message_length):
             symbols_by_position = list(symbols)
+
+    # Build the reverse symbols -> possible position (perf purpose)
+    symbol_to_positions = defaultdict(deque)
+    for position, _symbols in enumerate(symbols_by_position):
+        for s1 in _symbols:
+            symbol_to_positions[s1].append(position)
 
     # Auto-fill `message_length`
     if message_length is None:
@@ -88,19 +93,15 @@ def reverse_ioc_generator(target_ioc: float, symbols_by_position:list[list]=None
         else:
             break
 
-    # Build symbols -> possible position (perf purpose)
-    symbol_to_positions = defaultdict(deque)
-    for position, symbol in enumerate(symbols_by_position):
-        symbol_to_positions[symbol].append(position)
-
     def _resurcive_stage_solution_generator(
         current_max: int,
-        current_nominator: float,
-        current_slot_consume: int,
-        current_solution: list,
         target_range_ioc: tuple,
         symbol_to_positions: dict[list],
         symbols_by_position: list[list],
+        ioc_denominator: float,
+        current_nominator: float = 0,
+        current_slot_consume: int = 0,
+        current_solution: list = None,
         stage_deepness=0,
     ) -> list[int]:
         """ Avoid to generate the whole combinatory solution, but
@@ -129,6 +130,9 @@ def reverse_ioc_generator(target_ioc: float, symbols_by_position:list[list]=None
             * current_slot_consume (int):
                 Number of slot used in the `current_solution`.
                 Equal to `len(current_solution) - current_solution.count(None)`
+            * ioc_denominator (float):
+                The value of the IoC denominator, which is computed once
+                at the begin of the recursive call.
             * target_range_ioc (tuple[int, int]):
                 Tuple of size 2, that is compose of the `(min, max)` of the
                 targer IoC range.
@@ -144,24 +148,16 @@ def reverse_ioc_generator(target_ioc: float, symbols_by_position:list[list]=None
         Return:
             (list[int]) Yield solutions as list of symbols
         TODO:
-            * `stage_sizes` compute can be better, I think we can pre-compute
-                in which range we the current stage size can be to be in the
-                target IoC range.
-                All ideas are welcome.
+            * Find a way to pre-compute min-max stages values
+            * Improve stages filtering : could be way more narrow
         """
         # Note that `s1` and `s2` always refer to a symbol value
+        solution_length = len(current_solution)
 
-        # Default solution
-        if current_solution is None:
-            current_solution = [None] * len(symbols_by_position)
-
-        solution_length = len(symbols_by_position)
-        ioc_denominator = solution_length*(solution_length-1)
-
-        # Compute all possibles stages sizes from this point
+        # Compute stages sizes from this point that respect the *min* IoC
         stage_sizes = []
         for n in range(current_max, 0, -1):
-            # Skip no-fit in the remains slot
+            # Check no overflow remains slot
             if n > (solution_length-current_slot_consume):
                 continue
             
@@ -175,22 +171,25 @@ def reverse_ioc_generator(target_ioc: float, symbols_by_position:list[list]=None
                     forecast_nominator += m*(m-1)
                     forecast_slot_consume += m
             
+            # print(f"forecast_nominator/ioc_denominator {forecast_nominator/ioc_denominator} / current_nominator {current_nominator}")
             if forecast_nominator/ioc_denominator >= target_range_ioc[0]:
                 stage_sizes.append(n)
 
         # For each stage size at this position, compute all reals combinations
-        # possible, that take in accuont the 
+        # possible, that take in account available position for each char
         for stage_size in stage_sizes:
             # Define compatible symbols
             stage_symbols = deque()
+            # TODO convert the n*m to cached values
             for s1, positions in symbol_to_positions.items():
                 if len(positions) >= stage_size and s1 not in current_solution:
                     stage_symbols.append(s1)
-            # Define next nominator
+            
+            # Define next nominator (for next recursive)
             forecast_nominator = current_nominator + stage_size*(stage_size-1)
 
             for s1 in stage_symbols:
-                positions_availables = symbol_to_positions[s1]
+                positions_availables = list(symbol_to_positions[s1])
                 for stage_as_binary in generator_bin_words(
                     words_length = len(positions_availables),
                     bits_up_count = stage_size,
@@ -200,18 +199,29 @@ def reverse_ioc_generator(target_ioc: float, symbols_by_position:list[list]=None
                     # "are in".
 
                     # Break ref to reuse in next iteration
-                    next_solution = list(current_solution)
-                    next_symbol_to_positions = dict(symbol_to_positions)
+                    next_solution = copy.deepcopy(current_solution)
+                    next_symbol_to_positions = copy.deepcopy(symbol_to_positions)
+                    next_symbols_by_position = copy.deepcopy(symbols_by_position)
 
                     # Apply `stage_as_binary`, as it define new position for
-                    # the symbol `s1`
-                    for i in range(len(stage_symbols)):
-                        if (1 << i & stage_as_binary) > 0:
-                            next_solution[positions_availables[i]] = s1
-                            # Update `next_symbol_to_positions`
-                            for s2 in symbols_by_position[positions_availables[i]]:
-                                next_symbol_to_positions[s2].remove(positions_availables[i])
+                    # the symbol `s1`.
+                    # And build base values for the next recursive
+                    count_bit_found = 0
+                    for i, position in enumerate(positions_availables):
+                        # 1 bit up mean 1 position selected.
+                        if ((1 << i) & stage_as_binary) > 0:
+                            count_bit_found += 1
+                            next_solution[position] = s1
+                            for s2 in next_symbols_by_position[position]:
+                                next_symbol_to_positions[s2].remove(position)
+                                next_symbols_by_position[position].remove(s2)
+                        # If all positions are found, no need to continue
+                        if count_bit_found == stage_size:
+                            break
+                    
 
+                    # print(f"stage_deepness - len(symbols_by_position) = {stage_deepness} - {len(symbols_by_position)}")
+                    # print(f"next_solution fill = {len(next_solution) - next_solution.count(None)}/{len(next_solution)} at {id(next_solution)}")
                     if stage_deepness == len(symbols_by_position) -1:
                         # Tail behavior
                         yield next_solution
@@ -222,18 +232,21 @@ def reverse_ioc_generator(target_ioc: float, symbols_by_position:list[list]=None
                             current_nominator=forecast_nominator,
                             current_slot_consume=current_slot_consume+stage_size,
                             current_solution=next_solution,
+                            ioc_denominator=ioc_denominator,
                             target_range_ioc=target_range_ioc,
                             symbol_to_positions=next_symbol_to_positions,
-                            symbols_by_position=symbols_by_position,
+                            symbols_by_position=next_symbols_by_position,
                             stage_deepness=stage_deepness +1,
                         )
 
     # Yield all solutions for this `solution_template`
     yield from _resurcive_stage_solution_generator(
         current_max=max_global,
+        current_solution=[None] * message_length,
         symbol_to_positions=symbol_to_positions,
         symbols_by_position=symbols_by_position,
-        target_range_ioc=(target_ioc-delta, target_ioc+delta)
+        target_range_ioc=(target_ioc-delta, target_ioc+delta),
+        ioc_denominator=message_length*(message_length-1)
     )
 
 
